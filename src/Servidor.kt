@@ -1,7 +1,5 @@
-import io.ktor.application.ApplicationCallPipeline
 import io.ktor.application.call
 import io.ktor.response.respond
-import io.ktor.response.respondText
 import io.ktor.routing.get
 import io.ktor.routing.routing
 import io.ktor.server.engine.embeddedServer
@@ -13,15 +11,12 @@ import org.jsoup.nodes.Document
 import java.util.*
 import io.ktor.application.install
 import io.ktor.features.CORS
-import io.ktor.features.DefaultHeaders
-import io.ktor.features.origin
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.content.TextContent
-import io.ktor.request.*
-import org.json.JSONML
 import java.time.Duration
+import java.time.LocalDateTime
 
 class Servidor(puerto: Int) {
     private val puerto= puerto
@@ -45,8 +40,7 @@ class Servidor(puerto: Int) {
             routing {
                 get("/enlaces") {
                     val objectoRecibido = JSONObject(call.request.queryParameters["solicitud"])
-
-                    val solicitud = Solicitud( objectoRecibido.get("nombreWeb").toString(),
+                val solicitud = Solicitud( objectoRecibido.get("nombreWeb").toString(),
                         objectoRecibido.get("nombreEtiqueta").toString(), objectoRecibido.get("identificador").toString(),
                         objectoRecibido.get("palabra").toString() )
 
@@ -60,10 +54,11 @@ class Servidor(puerto: Int) {
                     if( jsonEnviar != null)
                         call.respond( TextContent( jsonEnviar.toString(), ContentType.Application.Json) )
                     else
-                        call.respond( TextContent( "[{}]", ContentType.Application.Json) )
+                        call.respond( TextContent( "[]", ContentType.Application.Json) )
 
-                    println("*")
+                    println("*******************************")
                     println(objectoRecibido.toString())
+                    println(LocalDateTime.now())
                 }
             }
         }
@@ -119,12 +114,4 @@ class Servidor(puerto: Int) {
 
 }
 
-/*
-intercept(ApplicationCallPipeline.Call) {
-    println(a++)
-    println("---")
-    call.respond(TextContent( objetoJson(contenidoPaginaJson("https://example.com", "p",
-        "", "")).toString(),
-        ContentType.Application.Json))
-}
-*/
+// intercept(ApplicationCallPipeline.Call) {}
