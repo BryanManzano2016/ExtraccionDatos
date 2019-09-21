@@ -1,3 +1,4 @@
+
 import io.ktor.application.call
 import io.ktor.response.respond
 import io.ktor.routing.get
@@ -11,16 +12,19 @@ import org.jsoup.nodes.Document
 import java.util.*
 import io.ktor.application.install
 import io.ktor.features.CORS
+import io.ktor.features.origin
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.content.TextContent
+import io.ktor.request.receiveText
+import io.ktor.response.respondText
+import io.ktor.routing.post
 import java.time.Duration
-import java.time.LocalDateTime
+// import java.time.LocalDateTime
 
-class Servidor(puerto: Int) {
-    private val puerto= puerto
-    private var etiqueta: String = ""
+class Servidor(private val puerto: Int) {
+    private var etiqueta: String? = ""
 
     init {
         ejecucionServidor()
@@ -40,63 +44,77 @@ class Servidor(puerto: Int) {
             routing {
                 get("/enlaces") {
                     val objectoRecibido = JSONObject(call.request.queryParameters["solicitud"])
-                val solicitud = Solicitud( objectoRecibido.get("nombreWeb").toString(),
-                        objectoRecibido.get("nombreEtiqueta").toString(), objectoRecibido.get("identificador").toString(),
-                        objectoRecibido.get("palabra").toString() )
+                    val solicitud = jsonToSolicitud(objectoRecibido, false)
 
-                    val jsonEnviar =
-                        contenidoPaginaJson(solicitud.nombrePagina, solicitud.etiqueta, solicitud.id, solicitud.palabraClave)?.let { it1 ->
-                            objetoJson(
-                                it1
-                            )
-                        }
+                    val jsonEnviar = contenidoPaginaJson( solicitud?.nombrePagina,
+                        solicitud?.etiqueta, solicitud?.palabraClave )?.let { it1 -> objetoJson(it1) }
 
-                    if( jsonEnviar != null)
+                    if( jsonEnviar != null && !jsonEnviar.isEmpty )
                         call.respond( TextContent( jsonEnviar.toString(), ContentType.Application.Json) )
                     else
                         call.respond( TextContent( "[]", ContentType.Application.Json) )
+                    // println("Enlaces: " + LocalDateTime.now())
+                }
+                post("/guardarEnlaces"){
 
-                    println("*******************************")
-                    println(objectoRecibido.toString())
-                    println(LocalDateTime.now())
+                    val objetoRecibidoString = call.receiveText()
+
+                    val objetoRecibido = JSONObject(JSONObject(JSONArray(JSONObject(JSONObject(
+                        objetoRecibidoString).get("params").toString()).
+                        get("updates").toString()).
+                        get(0).toString()).
+                        get("value").toString())
+
+                    val solicitud = jsonToSolicitud(objetoRecibido ,true)
+
+                    if (solicitud != null) {
+                        if (solicitud.dataFormatoDB() != "" && solicitud.elementosFormatoDB() != "") {
+                            if(AlmacenTags().guardarEtiquetas(solicitud.nombrePagina, solicitud.dataFormatoDB(),
+                                    solicitud.elementosFormatoDB(), call.request.origin.remoteHost)){
+                                call.respondText { "1" }
+                            } else {
+                                call.respondText { "0" }
+                            }
+                        }
+                    }
+                    // println("GuardarEnlaces: " + LocalDateTime.now())
                 }
             }
         }
         server.start(wait = true)
     }
 
-    // Da formato a los mensajes del cliente
-    data class Solicitud(val nombrePagina: String, val etiqueta: String,
-                         val id: String = "", val palabraClave: String = "")
-
     // Dados los parametros se obtienen tags de html
-    private fun contenidoPaginaJson(nombrePagina: String, etiqueta: String, id: String = "",
-                                    palabraClave: String = ""): LinkedList<String>? {
+    private fun contenidoPaginaJson(nombrePagina: String?, etiqueta: String?, palabraClave: String? = ""):
+            LinkedList<String>? {
+
+        if( nombrePagina == "" || etiqueta == "")
+            return null
+
         val doc: Document?
         try {
             doc = Jsoup.connect(nombrePagina).get()
             val listaEtiquetas = LinkedList<String>()
+
             if( doc != null ){
                 // Ejemplo de formato de busqueda: div#logo:contains(jsoup)
                 var etiquetaFinal = etiqueta
-                this.etiqueta = etiquetaFinal
 
-                if (id != "")
-                    etiquetaFinal += "#$id"
                 if (palabraClave != "")
                     etiquetaFinal += ":contains($palabraClave)"
 
-                doc.select(etiqueta)?.forEach { elem -> listaEtiquetas.add(elem.toString()) }
+                doc.select(etiquetaFinal)?.forEach { elem -> listaEtiquetas.add(elem.toString()) }
                 return listaEtiquetas
             }
-        } catch (e: Exception){ println("Pagina no valida")  }
+
+        } catch (e: Exception){ }
         return null
     }
 
     // De lista de string a JSONObject
     private fun objetoJson(lista: LinkedList<String>): JSONArray?{
         if(!lista.isEmpty()){
-            var listaEtiquetas = JSONArray()
+            val listaEtiquetas = JSONArray()
             lista.forEach{ elem ->
                 run {
                     val objeto = JSONObject().also {
@@ -112,6 +130,19 @@ class Servidor(puerto: Int) {
         return null
     }
 
-}
+    private fun jsonToSolicitud(objetoRecibido: JSONObject, conElementos: Boolean): Solicitud?{
+        return if (conElementos) {
+            Solicitud( objetoRecibido.get("nombreWeb").toString(),
+                objetoRecibido.get("nombreEtiqueta").toString(),
+                objetoRecibido.get("palabra").toString(),
+                JSONArray(objetoRecibido.get("elementos").toString()))
+        } else {
+            Solicitud( objetoRecibido.get("nombreWeb").toString(),
+                objetoRecibido.get("nombreEtiqueta").toString(),
+                objetoRecibido.get("palabra").toString(),
+                JSONArray())
+        }
+    }
 
+}
 // intercept(ApplicationCallPipeline.Call) {}

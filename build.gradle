@@ -43,4 +43,5 @@ dependencies {
     compile 'org.jsoup:jsoup:1.12.1'
     testCompile "io.ktor:ktor-server-tests:$ktor_version"
     compile 'org.json:json:20190722'
+    compile group: 'postgresql', name: 'postgresql', version: '9.0-801.jdbc4'
 }
